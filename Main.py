@@ -1,4 +1,6 @@
+import os
 import time
+from datetime import datetime
 from Login import Login
 from Masterlist import Masterlist
 from Historic import HistoricalDataManager
@@ -6,6 +8,43 @@ import pandas as pd
 from OptionGreeks import OptionGreeksManager
 
 session_data = None
+token_df = None
+day_open = int(os.getenv("DAY_OPEN"))
+strike_range = int(os.getenv("STRIKE_RANGE"))
+values = [day_open + i * 50 for i in range(-strike_range, strike_range + 1)]
+print("Values:", values)
+
+
+def save_historical_data_to_csv(historical_manager, token_values, day_open, fromdate, todate, exchange='NFO', interval='ONE_MINUTE', output_dir='.'):
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    csv_filename = f"{day_open}_{timestamp}.csv"
+    csv_path = os.path.join(output_dir, csv_filename)
+    first_write = True
+
+    for strike, records in token_values.items():
+        for record in records:
+            symbol = record.get('symbol')
+            token = str(record.get('token'))
+            params = {
+                'exchange': exchange,
+                'symboltoken': token,
+                'interval': interval,
+                'fromdate': fromdate,
+                'todate': todate,
+            }
+            hist_df = historical_manager.get_historical_data(params)
+            if hist_df.empty:
+                continue
+
+            hist_df['strikeprice'] = int(strike / 100)
+            hist_df['symbol'] = symbol
+            hist_df['token'] = token
+            hist_df = hist_df[['timestamp', 'open', 'high', 'low', 'close', 'volume', 'strikeprice', 'symbol', 'token']]
+
+            hist_df.to_csv(csv_path, mode='a', index=False, header=first_write)
+            first_write = False
+
+    return csv_path
 
 if __name__ == "__main__":
     # Record the start time
@@ -15,10 +54,16 @@ if __name__ == "__main__":
     master = Masterlist()  # Create an instance of the Masterlist class to fetch the master list data
     # Get the token DataFrame from the master list instance and print it
     token_df = master.get_token_df()
-    print(token_df)
+    # print(token_df)
     print(f"\nMasterlist loaded in {time.time() - start_time:.2f} seconds")
     # Print a success message with the number of records fetched
     print(f"\nMasterlist successfully fetched with {len(token_df)} records!")
+    token_values = master.get_nifty_strike_map('30-03-2026', values)
+    print("\nToken values for NIFTY strikes at expiry 30-03-2026:")
+    for strike, records in token_values.items():
+        print(f"Strike: {strike}")
+        for record in records:
+            print(f"  Symbol: {record['symbol']}, Token: {record['token']}")
 
     """------------------------------------------------ End of Masterlist --------------------------------------------------"""
 
@@ -52,18 +97,18 @@ if __name__ == "__main__":
     if session_data['status'] == 'success':
         # Create an instance of the HistoricalDataManager class using the smart connect object from the session data
         data_manager = HistoricalDataManager(smart_connect)
-        if data_manager:  # Check if the data manager instance was created successfully before attempting to fetch historical data, otherwise print a failure message
-            historic_param = {
-                "exchange": "NFO",
-                "symboltoken": "54505",
-                "interval": "ONE_MINUTE",
-                "fromdate": "2026-03-27 09:15",
-                "todate": "2026-03-27 15:30"
-            }
-            # Call the get_historical_data method with the specified parameters and store the result in a variable
-            global_hist_data = data_manager.get_historical_data(historic_param)
-            print("\nHistorical Data:")
-            # print(global_hist_data)
+        if data_manager:
+            output_csv = save_historical_data_to_csv(
+                data_manager,
+                token_values,
+                day_open,
+                fromdate="2026-03-27 09:15",
+                todate="2026-03-27 15:30",
+                exchange="NFO",
+                interval="ONE_MINUTE",
+                output_dir='.'
+            )
+            print(f"\nHistorical candle data saved to: {output_csv}")
         else:
             print("\nFailed to fetch historic data")
     else:
@@ -74,33 +119,33 @@ if __name__ == "__main__":
 
     """------------------------------------------------- End of Historical Data Fetching --------------------------------------------------"""
 
-    """------------------------------------------------- Option Greeks Fetching --------------------------------------------------"""
-    # Check if login was successful before attempting to fetch option Greeks data, otherwise print a failure message
-    if session_data['status'] == 'success':
-        # Create an instance of the OptionGreeksManager class using the smart connect object from the session data
-        option_greeks_manager = OptionGreeksManager(smart_connect)
-        if option_greeks_manager:
-            option_greeks_params = {
-                "name": "NIFTY",
-                "expirydate": "30MAR2026"
-            }
-            global_option_greeks = option_greeks_manager.get_option_greeks(
-                # Call the get_option_greeks method with the specified parameters and store the result in a variable
-                option_greeks_params)
+    # """------------------------------------------------- Option Greeks Fetching --------------------------------------------------"""
+    # # Check if login was successful before attempting to fetch option Greeks data, otherwise print a failure message
+    # if session_data['status'] == 'success':
+    #     # Create an instance of the OptionGreeksManager class using the smart connect object from the session data
+    #     option_greeks_manager = OptionGreeksManager(smart_connect)
+    #     if option_greeks_manager:
+    #         option_greeks_params = {
+    #             "name": "NIFTY",
+    #             "expirydate": "30MAR2026"
+    #         }
+    #         global_option_greeks = option_greeks_manager.get_option_greeks(
+    #             # Call the get_option_greeks method with the specified parameters and store the result in a variable
+    #             option_greeks_params)
 
-            # Sort by tradeVolume in descending order (combining CE and PE)
-            if not global_option_greeks.empty and 'tradeVolume' in global_option_greeks.columns:
-                global_option_greeks = global_option_greeks.sort_values(
-                    'tradeVolume', ascending=False)
+    #         # Sort by tradeVolume in descending order (combining CE and PE)
+    #         if not global_option_greeks.empty and 'tradeVolume' in global_option_greeks.columns:
+    #             global_option_greeks = global_option_greeks.sort_values(
+    #                 'tradeVolume', ascending=False)
 
-            print("\nOption Greeks Data:")
-            # print(global_option_greeks)
-        else:
-            print("\nOption Greeks manager not available")
-    else:
-        print("\nOption Greeks data is not available")
+    #         print("\nOption Greeks Data:")
+    #         # print(global_option_greeks)
+    #     else:
+    #         print("\nOption Greeks manager not available")
+    # else:
+    #     print("\nOption Greeks data is not available")
 
-    # Print the time taken to fetch option Greeks data
-    print(f"\nOption Greeks data fetched in {time.time() - start_time:.2f} seconds\n")
+    # # Print the time taken to fetch option Greeks data
+    # print(f"\nOption Greeks data fetched in {time.time() - start_time:.2f} seconds\n")
 
-    """------------------------------------------------- End of Option Greeks Fetching --------------------------------------------------"""
+    # """------------------------------------------------- End of Option Greeks Fetching --------------------------------------------------"""

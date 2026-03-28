@@ -14,3 +14,29 @@ class Masterlist:
 
     def get_token_df(self):
         return self.token_df
+
+    def get_nifty_strike_map(self, expiry_date, strike_values):
+        """Return symbol/token records for NIFTY strikes at a given expiry.
+
+        Args:
+            expiry_date (str|datetime.date): Expiry date, e.g. '30-03-2026'.
+            strike_values (iterable): Strike prices to filter, e.g. [23000, 23050].
+
+        Returns:
+            dict: {strike: [{'symbol': ..., 'token': ...}, ...], ...}
+        """
+        if isinstance(expiry_date, str):
+            expiry_date = pd.to_datetime(expiry_date, dayfirst=True).date()
+
+        df = self.token_df.copy()
+        df = df[df['name'].astype(str).str.strip().str.upper() == 'NIFTY']
+        df = df[df['expiry'] == expiry_date]
+
+        strike_values = sorted({float(v) * 100 for v in strike_values})
+        df = df[df['strike'].isin(strike_values)]
+
+        result = {}
+        for strike, group in df.groupby('strike'):
+            result[int(strike)] = group[['symbol', 'token']].to_dict('records')
+
+        return result
