@@ -10,7 +10,7 @@ from OptionGreeks import OptionGreeksManager
 session_data = None
 token_df = None
 day_open = int(os.getenv("DAY_OPEN"))
-strike_range = int(os.getenv("STRIKE_RANGE"))
+strike_range = int(os.getenv("STRIKE_LEVELS"))
 values = [day_open + i * 50 for i in range(-strike_range, strike_range + 1)]
 print("Values:", values)
 
@@ -58,8 +58,8 @@ if __name__ == "__main__":
     print(f"\nMasterlist loaded in {time.time() - start_time:.2f} seconds")
     # Print a success message with the number of records fetched
     print(f"\nMasterlist successfully fetched with {len(token_df)} records!")
-    token_values = master.get_nifty_strike_map('30-03-2026', values)
-    print("\nToken values for NIFTY strikes at expiry 30-03-2026:")
+    token_values = master.get_nifty_strike_map(os.getenv("EXPIRY_DATE"), values)
+    print("\nToken values for NIFTY strikes at expiry "+os.getenv("EXPIRY_DATE")+":")
     for strike, records in token_values.items():
         print(f"Strike: {strike}")
         for record in records:
@@ -102,8 +102,8 @@ if __name__ == "__main__":
                 data_manager,
                 token_values,
                 day_open,
-                fromdate="2026-03-27 09:15",
-                todate="2026-03-27 15:30",
+                fromdate=os.getenv("FROM_DATE") + " 09:15",
+                todate=os.getenv("TO_DATE") + " 15:30",
                 exchange="NFO",
                 interval="ONE_MINUTE",
                 output_dir='.'
