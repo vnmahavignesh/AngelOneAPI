@@ -70,8 +70,7 @@ if __name__ == "__main__":
         print("\nHistoric Data is not available")
 
     # Print the time taken to fetch historical data
-    print(
-        f"\nHistorical data fetched in {time.time() - start_time:.2f} seconds\n")
+    print(f"\nHistorical data fetched in {time.time() - start_time:.2f} seconds\n")
 
     """------------------------------------------------- End of Historical Data Fetching --------------------------------------------------"""
 
@@ -102,7 +101,6 @@ if __name__ == "__main__":
         print("\nOption Greeks data is not available")
 
     # Print the time taken to fetch option Greeks data
-    print(
-        f"\nOption Greeks data fetched in {time.time() - start_time:.2f} seconds\n")
+    print(f"\nOption Greeks data fetched in {time.time() - start_time:.2f} seconds\n")
 
     """------------------------------------------------- End of Option Greeks Fetching --------------------------------------------------"""
