@@ -15,7 +15,7 @@ day_open = int(os.getenv("DAY_OPEN"))
 strike_range = int(os.getenv("STRIKE_LEVELS"))
 
 # Calculate the strike values based on the day open and strike range
-values = [day_open + i * 50 for i in range(-strike_range, strike_range + 1)]
+values = [day_open + i * (int(os.getenv("STRIKE_STEP"))) for i in range(-strike_range, strike_range + 1)] # Generate strike values around the day open price, with a step of 50, based on the specified strike range (e.g., if strike_range is 15, it will generate 31 strike values from day_open - 750 to day_open + 750)
 print("Values:", values) # Print the calculated strike values for verification
 
 """---------------------------------------------Global Variables End-------------------------------------------------------"""
