@@ -12,8 +12,11 @@ Step 4: pip install -r requirements.txt (To Install dependencies from this txt f
 
 # Angelone Pre-requisites
 Step 1: Install VS Code
+
 Step 2: Install Python -> check python Version python --version
+
 Step 3: pip install pandas -> Install Pandas
+
 Step 4: pip install smartapi-python -> Install smart api for angelone broking-> (Angel API Library)
 Step 5: pip install pyotp
 Step 6: pip install python-dotenv -> For creating .env file 
