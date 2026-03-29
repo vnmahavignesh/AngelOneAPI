@@ -149,7 +149,7 @@ class AngelOneWebSocket:
 
             # Define columns to display
             display_columns = ['token', 'exch_ts', 'ltp', 'open', 'high', 'low', 'PDclose',
-                               'oi', 'oipct', 'avgtp', 'volume']
+                               'oi', 'oipct', 'avgtp', 'volume','total_buy_qty', 'total_sell_qty','52w_high', '52w_low']
 
             # Get current token
             current_token = str(message.get('token'))
@@ -235,7 +235,7 @@ class ExcelDataUpdater:
                 sheet = wb.sheets.add("LiveData")
                 # Write headers
                 display_columns = ['token', 'exch_ts', 'ltp', 'open', 'high', 'low', 'PDclose',
-                                   'oi', 'oipct', 'avgtp', 'volume']
+                                   'oi', 'oipct', 'avgtp', 'volume','totBuyQuan', 'totSellQuan','52w_high', '52w_low']
                 sheet.range("A1").value = display_columns
             else:
                 sheet = wb.sheets["LiveData"]
@@ -245,7 +245,7 @@ class ExcelDataUpdater:
             if row_num:
                 # Prepare data row
                 display_columns = ['token', 'exch_ts', 'ltp', 'open', 'high', 'low', 'PDclose',
-                                   'oi', 'oipct', 'avgtp', 'volume']
+                                   'oi', 'oipct', 'avgtp', 'volume','total_buy_qty', 'total_sell_qty','52w_high', '52w_low']
                 data_row = [
                     data[col].values[0] if col in data.columns else "" for col in display_columns]
 
