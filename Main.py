@@ -91,34 +91,34 @@ if __name__ == "__main__":
 
     """------------------------------------------------- End of Historical Data Fetching --------------------------------------------------"""
 
-    # """------------------------------------------------- Option Greeks Fetching -----------------------------------------------------------"""
-    # # Check if login was successful before attempting to fetch option Greeks data, otherwise print a failure message
-    # if session_data['status'] == 'success':
-    #     # Create an instance of the OptionGreeksManager class using the smart connect object from the session data
-    #     option_greeks_manager = OptionGreeksManager(smart_connect)
-    #     if option_greeks_manager:
-    #         option_greeks_params = {
-    #             "name": "NIFTY",
-    #             "expirydate": "30MAR2026"
-    #         }
-    #         global_option_greeks = option_greeks_manager.get_option_greeks(
-    #             # Call the get_option_greeks method with the specified parameters and store the result in a variable
-    #             option_greeks_params)
+    """------------------------------------------------- Option Greeks Fetching -----------------------------------------------------------"""
+    # Check if login was successful before attempting to fetch option Greeks data, otherwise print a failure message
+    if session_data['status'] == 'success':
+        # Create an instance of the OptionGreeksManager class using the smart connect object from the session data
+        option_greeks_manager = OptionGreeksManager(smart_connect)
+        if option_greeks_manager:
+            option_greeks_params = {
+                "name": "NIFTY",
+                "expirydate": "30MAR2026"
+            }
+            global_option_greeks = option_greeks_manager.get_option_greeks(
+                # Call the get_option_greeks method with the specified parameters and store the result in a variable
+                option_greeks_params)
 
-    #         # Sort by tradeVolume in descending order (combining CE and PE)
-    #         if not global_option_greeks.empty and 'tradeVolume' in global_option_greeks.columns:
-    #             global_option_greeks = global_option_greeks.sort_values(
-    #                 'tradeVolume', ascending=False)
+            # Sort by tradeVolume in descending order (combining CE and PE)
+            if not global_option_greeks.empty and 'tradeVolume' in global_option_greeks.columns:
+                global_option_greeks = global_option_greeks.sort_values(
+                    'tradeVolume', ascending=False)
 
-    #         print("\nOption Greeks Data:")
-    #         # print(global_option_greeks)
-    #     else:
-    #         print("\nOption Greeks manager not available")
-    # else:
-    #     print("\nOption Greeks data is not available")
+            print("\nOption Greeks Data:")
+            # print(global_option_greeks)
+        else:
+            print("\nOption Greeks manager not available")
+    else:
+        print("\nOption Greeks data is not available")
 
-    # # Print the time taken to fetch option Greeks data
-    # print(
-    #     f"\nOption Greeks data fetched in {time.time() - start_time:.2f} seconds\n")
+    # Print the time taken to fetch option Greeks data
+    print(
+        f"\nOption Greeks data fetched in {time.time() - start_time:.2f} seconds\n")
 
-    # """------------------------------------------------- End of Option Greeks Fetching --------------------------------------------------"""
+    """------------------------------------------------- End of Option Greeks Fetching --------------------------------------------------"""
