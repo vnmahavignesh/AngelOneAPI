@@ -17,9 +17,9 @@ Step 3: pip install pandas -> Install Pandas
 Step 4: pip install smartapi-python -> Install smart api for angelone broking-> (Angel API Library)
 Step 5: pip install pyotp
 Step 6: pip install python-dotenv -> For creating .env file 
-Step 7: pip install websocket-client  
-Step 8: pip install logzero -> For Logs 
-Step 9: pip install matplotlib -> To Visualise our values 
-Step 10: pip install XlsxWriter -> For Excel read nad write ->  using excel library 
-Step 11: pip install openpyxl ->For Excel read nad write ->  using pandas library 
+Step 7: pip install websocket-client
+Step 8: pip install logzero -> For Logs
+Step 9: pip install matplotlib -> To Visualise our values
+Step 10: pip install XlsxWriter -> For Excel read nad write ->  using excel library
+Step 11: pip install openpyxl ->For Excel read nad write ->  using pandas library
 Step 12: Add Juyter notebook extension in VS Code and Data Wrangler
