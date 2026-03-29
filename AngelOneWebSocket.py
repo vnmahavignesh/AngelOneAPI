@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime as dt
 import os
 import queue
 import threading
@@ -28,8 +28,10 @@ class AngelOneWebSocket:
         self.excel_updater = ExcelDataUpdater()  # Add this line
         self.current_token_list = None  # To store subscribed tokens
 
-        print("\n Authentication Token--------:\n", self.auth_token) # Print the authentication token to verify that it has been retrieved successfully
-        print("\n Feed Token------------:\n", self.feed_token) # Print the feed token to verify that it has been retrieved successfully
+        # # Print the authentication token to verify that it has been retrieved successfully
+        # print("\n Authentication Token--------:\n", self.auth_token)
+        # # Print the feed token to verify that it has been retrieved successfully
+        # print("\n Feed Token------------:\n", self.feed_token)
 
         # WebSocket setup
         self.sws = SmartWebSocketV2(
@@ -139,7 +141,7 @@ class AngelOneWebSocket:
                 df['LTTS'] = pd.to_datetime(
                     df['LTTS'], unit='s').dt.strftime('%Y-%m-%d %H:%M:%S')
             if 'exch_ts' in df.columns:
-                df['exch_ts'] = datetime.fromtimestamp(
+                df['exch_ts'] = dt.fromtimestamp(
                     df['exch_ts'].iloc[0] / 1000).isoformat()
 
             # Store latest data
@@ -210,7 +212,7 @@ class ExcelDataUpdater:
             token_list: List of tokens being watched (for row mapping)
         """
         try:
-            import xlwings as xw  # type: ignore
+            import xlwings as xw
 
             # Update token-row mapping if token_list is provided
             if token_list and len(token_list) > 0 and len(token_list[0]["tokens"]) > 0:
@@ -269,7 +271,7 @@ class ExcelDataUpdater:
             option_greeks_data: DataFrame containing option Greeks data
         """
         try:
-            import xlwings as xw  # type: ignore
+            import xlwings as xw
 
             # Try to open existing workbook or create new
             try:

@@ -3,8 +3,6 @@ import time
 from AngelOneWebSocket import AngelOneWebSocket
 from Login import Login
 from Masterlist import Masterlist
-import pandas as pd
-from OptionGreeks import OptionGreeksManager
 
 """---------------------------------------------Global Variables Start-------------------------------------------------------"""
 
@@ -49,7 +47,7 @@ if __name__ == "__main__":
     """-------------------------------------------------- Login to the API ------------------------------------------------"""    
     login_manager = Login() # Create an instance of the LoginManager class and login to the API    
     session_data = login_manager.login() # Call the login method and store the session data and print it
-    print("\nSession Data: \n", session_data)
+    # print("\nSession Data: \n", session_data)
 
     # Check if login was successful and print the smart connect object, otherwise print a failure message
     # Note: The smart connect object is only printed if the login is successful, otherwise it will not be available
@@ -90,8 +88,3 @@ if __name__ == "__main__":
                
     """----------------------------------------------End of Websocket Connection and Data Handling---------------------------------------------- """
     
-
-   
-
-    
-
