@@ -27,7 +27,7 @@ class Masterlist:
             dict: {strike: [{'symbol': ..., 'token': ...}, ...], ...}
         """
         if isinstance(expiry_date, str):
-            expiry_date = pd.to_datetime(expiry_date).date()
+            expiry_date = pd.to_datetime(expiry_date).date() # expiry_date = pd.to_datetime(expiry_date, dayfirst=True).date()            
 
         df = self.token_df.copy()
         # Filter by instrument name (e.g., NIFTY)
