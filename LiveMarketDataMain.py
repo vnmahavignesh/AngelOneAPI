@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import datetime, timezone, timedelta
 from LiveMarketData import LiveMarketDataManager
 from Login import Login
 from Masterlist import Masterlist
@@ -43,12 +44,12 @@ if __name__ == "__main__":
         os.getenv("EXPIRY_DATE"), values, os.getenv("INSTRUMENT_NAME"))
     # print the token values for the specified expiry date and strike levels
     print("\nToken values for NIFTY strikes at expiry " +
-          os.getenv("EXPIRY_DATE")+":")
+          os.getenv("EXPIRY_DATE") + ":")
 
     # print the total number of records fetched for the token values
     total_records = sum(len(records) for records in token_values.values())
     # Print the total number of records fetched for the specified expiry date and strike levels
-    print(f"Total records: {total_records}")
+    print(f"Total records: {token_values}")
 
     # for strike, records in token_values.items(): # Print the strike price and corresponding symbol/token records for each strike level
     #     print(f"Strike: {strike}")
@@ -86,49 +87,72 @@ if __name__ == "__main__":
     if session_data['status'] == 'success':
         # Create an instance of LiveMarketDataManager
         live_data_manager = LiveMarketDataManager(smart_connect)
-        
-        # Method 1: Get data for specific tokens
-        exchange_tokens = {"NFO": ["40803"]}  # You can add more tokens here
-        
-        # Fetch and display data
-        live_df = live_data_manager.get_live_market_data_as_dataframe("FULL", exchange_tokens)
-        
-        if not live_df.empty:
-            # Print formatted instrument data
-            live_data_manager.print_instrument_data(live_df)
-            
-            # Extract and display only key fields
-            key_fields_df = live_data_manager.extract_key_fields(live_df)
-            print("\n\nKey Fields Data:")
-            print(key_fields_df)
-            
-            # Option 1: Get NFO data only
-            nfo_data = live_df[live_df['exchange'] == 'NFO']
-            if not nfo_data.empty:
-                print("\n\nNFO Data:")
-                print(nfo_data[['exchange', 'tradingSymbol', 'open', 'high', 'low', 'close', 'ltp', 'percentChange']])
-            
-            # Option 2: Get data for a single instrument
-            instrument_data = live_data_manager.get_instrument_data("NFO", "40803")
-            if instrument_data:
-                print("\n\nSingle Instrument Data:")
-                print(f"Symbol: {instrument_data.get('tradingSymbol')}")
-                print(f"LTP: {instrument_data.get('ltp')}")
-                print(f"Open Interest: {instrument_data.get('opnInterest')}")
-            
-            # Option 3: Save to CSV
-            csv_path = live_data_manager.save_live_market_data_to_csv(
-                exchange_tokens, 
-                output_dir='.', 
-                prefix='nifty_live_data'
-            )
-            if csv_path:
-                print(f"\nLive data saved to: {csv_path}")
-        else:
-            print("\nNo live market data fetched")
+
+        # Extract tokens from token_values
+        exchange_tokens_list = []
+        for strike, records in token_values.items():
+            for record in records:
+                exchange_tokens_list.append(str(record['token']))
+        exchange_tokens = {"NFO": exchange_tokens_list}
+
+        # Define end time: 3:30 PM IST (UTC+5:30)
+        ist_offset = timedelta(hours=5, minutes=30)
+        end_time = datetime.now(timezone.utc) + ist_offset
+        end_time = end_time.replace(
+            hour=15, minute=30, second=0, microsecond=0)
+
+        # CSV filename: Nifty_day_open_yyyymmdd.csv
+        current_date = datetime.now().strftime('%Y%m%d')
+        csv_filename = f"Nifty_{day_open}_{current_date}.csv"
+        csv_path = os.path.join('.', csv_filename)
+
+        # print(f"\nCSV file will be saved as: {csv_filename}")
+        # print(f"Day open value used in filename: {day_open}")
+
+        # Define columns to remove
+        columns_to_remove = ['exchange','symbolToken','lastTradeQty','netChange','percentChange','avgPrice','lowerCircuit','upperCircuit', 'exchTradeTime','52WeekLow','52WeekHigh', 'depth', 'timestamp']
+
+        # Loop every minute until 3:30 PM IST
+        while datetime.now(timezone.utc) + ist_offset < end_time:
+            # Fetch and display data
+            live_df = live_data_manager.get_live_market_data_as_dataframe(
+                "FULL", exchange_tokens)
+
+            if not live_df.empty:
+                # Add timestamp column (for reference but will be removed before saving)
+                live_df['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                # Remove specified columns (only if they exist in the dataframe)
+                columns_to_drop = [
+                    col for col in columns_to_remove if col in live_df.columns]
+                if columns_to_drop:
+                    live_df = live_df.drop(columns=columns_to_drop)
+                    # print(f"\nRemoved columns: {columns_to_drop}")
+
+                # Check if file exists to determine if header should be written
+                file_exists = os.path.exists(csv_path)
+
+                # Append to CSV without the removed columns
+                live_df.to_csv(csv_path, mode='a', index=False,
+                               header=not file_exists)
+                print(f"Data appended to {csv_path} at {datetime.now().strftime('%H:%M:%S')}")
+                # print(f"Columns saved ({len(live_df.columns)} columns): {list(live_df.columns)}")
+                # print(f"Rows saved: {len(live_df)}")
+            else:
+                print("No live market data fetched")
+
+            # Sleep for 60 seconds
+            time.sleep(60)
+
+        print(f"\n{'='*60}")
+        print(f"Loop ended. Final CSV saved at: {csv_path}")
+        print(f"Total runtime: {time.time() - start_time:.2f} seconds")
+        print(f"{'='*60}")
     else:
         print("\nLive Market Data is not available")
 
-    print(f"\nLive market data fetched in {time.time() - start_time:.2f} seconds\n")
+    print(f"\nCSV file will be saved as: {csv_filename}")
+    print(f"Day open value used in filename: {day_open}")
+    print(f"\nLive market data fetching completed in {time.time() - start_time:.2f} seconds\n")
 
     """------------------------------------------------- End of Live Market Data Fetching -----------------------------------"""
