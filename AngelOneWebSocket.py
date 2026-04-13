@@ -11,7 +11,7 @@ import pandas as pd
 class AngelOneWebSocket:
     """Handles WebSocket connections and data streaming"""
 
-    def __init__(self, auth_token: str, feed_token: str):
+    def __init__(self, auth_token: str, feed_token: str, token_to_symbol: dict):
         """
         Initialize WebSocket manager
 
@@ -19,12 +19,14 @@ class AngelOneWebSocket:
             smart_connect: Authenticated SmartConnect instance
             auth_token: JWT token from authentication
             feed_token: Feed token from authentication
+            token_to_symbol: Dictionary mapping tokens to symbols
         """
 
         self.api_key = os.getenv("API_KEY")
         self.client_id = os.getenv("CLIENT_ID")
         self.auth_token = auth_token
         self.feed_token = feed_token
+        self.token_to_symbol = token_to_symbol
         self.excel_updater = ExcelDataUpdater()  # Add this line
         self.current_token_list = None  # To store subscribed tokens
 
@@ -129,6 +131,10 @@ class AngelOneWebSocket:
                 old_name) for old_name, new_name in field_mapping.items()}
             df = pd.DataFrame([data])
 
+            # Add symbol from token mapping
+            df['symbol'] = self.token_to_symbol.get(
+                str(message.get('token')), '')
+
             # Price normalization
             price_fields = ['ltp', 'avgtp', 'open', 'high', 'low', 'PDclose',
                             'upper_circuit', 'lower_circuit', '52w_high', '52w_low']
@@ -148,8 +154,8 @@ class AngelOneWebSocket:
             self.latest_data = df
 
             # Define columns to display
-            display_columns = ['token', 'exch_ts', 'ltp', 'open', 'high', 'low', 'PDclose',
-                               'oi', 'oipct', 'avgtp', 'volume','total_buy_qty', 'total_sell_qty','52w_high', '52w_low']
+            display_columns = ['symbol','ltp', 'open', 'high', 'low', 'PDclose',
+                               'oi', 'oipct', 'avgtp', 'volume','token', 'exch_ts', 'total_buy_qty', 'total_sell_qty', '52w_high', '52w_low']
 
             # Get current token
             current_token = str(message.get('token'))
@@ -159,7 +165,8 @@ class AngelOneWebSocket:
 
             # Print to terminal
             print("\n" + "="*50)
-            print(f"Live Data Update - Token: {current_token}")
+            print(
+                f"Live Data Update - Token: {current_token}, Symbol: {df['symbol'].iloc[0]}")
             print("="*50)
             print(display_data.to_string(index=False))
             print("-"*50 + "\n")
@@ -201,27 +208,44 @@ class ExcelDataUpdater:
 
     def __init__(self, file_name="live_market_data.xlsx"):
         self.file_name = file_name
-        self.token_row_map = {}  # Maps tokens to their respective Excel rows
+        self.all_data = pd.DataFrame()  # Store all market data
+        self.display_columns = ['symbol','ltp', 'open', 'high', 'low', 'PDclose',
+                                'oi', 'oipct', 'avgtp', 'volume','token', 'exch_ts', 'total_buy_qty', 'total_sell_qty', '52w_high', '52w_low']
 
     def update_excel(self, data: pd.DataFrame, token_list: list = None):
         """
-        Update Excel with live market data
+        Update Excel with live market data, sorted by volume descending
 
         Args:
-            data: DataFrame containing market data
-            token_list: List of tokens being watched (for row mapping)
+            data: DataFrame containing market data for a single token
+            token_list: List of tokens being watched (for initialization)
         """
         try:
             import xlwings as xw
 
-            # Update token-row mapping if token_list is provided
-            if token_list and len(token_list) > 0 and len(token_list[0]["tokens"]) > 0:
-                tokens = token_list[0]["tokens"]
-                self.token_row_map = {token: idx +
-                                      2 for idx, token in enumerate(tokens)}
-
             # Get current token
             current_token = str(data['token'].iloc[0])
+
+            # Update or append to all_data
+            if self.all_data.empty:
+                self.all_data = data.copy()
+            else:
+                # Check if token already exists
+                if current_token in self.all_data['token'].astype(str).values:
+                    # Update existing row
+                    mask = self.all_data['token'].astype(str) == current_token
+                    for col in data.columns:
+                        if col in self.all_data.columns:
+                            self.all_data.loc[mask, col] = data[col].values[0]
+                else:
+                    # Append new row
+                    self.all_data = pd.concat(
+                        [self.all_data, data], ignore_index=True)
+
+            # Sort by volume in descending order
+            if 'volume' in self.all_data.columns:
+                self.all_data = self.all_data.sort_values(
+                    by='volume', ascending=False).reset_index(drop=True)
 
             # Try to open existing workbook or create new
             try:
@@ -233,32 +257,23 @@ class ExcelDataUpdater:
             # Get or create sheet
             if "LiveData" not in [s.name for s in wb.sheets]:
                 sheet = wb.sheets.add("LiveData")
-                # Write headers
-                display_columns = ['token', 'exch_ts', 'ltp', 'open', 'high', 'low', 'PDclose',
-                                   'oi', 'oipct', 'avgtp', 'volume','totBuyQuan', 'totSellQuan','52w_high', '52w_low']
-                sheet.range("A1").value = display_columns
             else:
                 sheet = wb.sheets["LiveData"]
+                sheet.clear()  # Clear existing data
 
-            # Determine row based on token
-            row_num = self.token_row_map.get(current_token)
-            if row_num:
-                # Prepare data row
-                display_columns = ['token', 'exch_ts', 'ltp', 'open', 'high', 'low', 'PDclose',
-                                   'oi', 'oipct', 'avgtp', 'volume','total_buy_qty', 'total_sell_qty','52w_high', '52w_low']
-                data_row = [
-                    data[col].values[0] if col in data.columns else "" for col in display_columns]
+            # Write headers
+            sheet.range("A1").value = self.display_columns
 
-                # Update Excel
-                sheet.range(f"A{row_num}").value = data_row
-                sheet.autofit()
-                wb.save()
+            # Write sorted data
+            if not self.all_data.empty:
+                sheet.range(
+                    "A2").value = self.all_data[self.display_columns].values.tolist()
 
-                print(
-                    f"Updated Excel - Token {current_token} at row {row_num}")
-            else:
-                print(
-                    f"Token {current_token} not in watchlist - not updating Excel")
+            sheet.autofit()
+            wb.save()
+
+            print(
+                f"Updated Excel - Sorted by volume descending. Current tokens: {len(self.all_data)}")
 
         except Exception as excel_error:
             print(f"Excel update failed: {str(excel_error)}")

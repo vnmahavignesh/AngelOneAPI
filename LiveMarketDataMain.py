@@ -1,8 +1,11 @@
 import os
 import time
-from AngelOneWebSocket import AngelOneWebSocket
+from datetime import datetime, timezone, timedelta
+from LiveMarketData import LiveMarketDataManager
 from Login import Login
 from Masterlist import Masterlist
+from Historic import HistoricalDataManager
+import pandas as pd
 
 """---------------------------------------------Global Variables Start-------------------------------------------------------"""
 
@@ -41,12 +44,12 @@ if __name__ == "__main__":
         os.getenv("EXPIRY_DATE"), values, os.getenv("INSTRUMENT_NAME"))
     # print the token values for the specified expiry date and strike levels
     print("\nToken values for NIFTY strikes at expiry " +
-          os.getenv("EXPIRY_DATE")+":")
+          os.getenv("EXPIRY_DATE") + ":")
 
     # print the total number of records fetched for the token values
     total_records = sum(len(records) for records in token_values.values())
     # Print the total number of records fetched for the specified expiry date and strike levels
-    print(f"Total records: {total_records}")
+    print(f"Total records: {token_values}")
 
     # for strike, records in token_values.items(): # Print the strike price and corresponding symbol/token records for each strike level
     #     print(f"Strike: {strike}")
@@ -74,51 +77,82 @@ if __name__ == "__main__":
         smart_connect = session_data['connection']
         # Print the smart connect object to verify that it has been created successfully
         print("\nSmart Connect Object:\n", smart_connect)
-
-        # Get the authentication token from the session data and print it
-        auth_token = session_data['data']['jwtToken']
-        # Print the authentication token to verify that it has been retrieved successfully
-        print("\nAuthentication Token:\n", auth_token)
-
-        # Get the feed token from the session data and print it
-        feed_token = session_data['data']['feedToken']
-        # Print the feed token to verify that it has been retrieved successfully
-        print("\nFeed Token:\n", feed_token)
     else:
         # Print a failure message if the login was not successful
         print("\nLogin failed!")
 
     """------------------------------------------------- End of Login -------------------------------------------------------"""
 
-    """----------------------------------------------Websocket Connection and Data Handling---------------------------------------------- """
+    """------------------------------------------------- Live Market Data Fetching ------------------------------------------"""
+    if session_data['status'] == 'success':
+        # Create an instance of LiveMarketDataManager
+        live_data_manager = LiveMarketDataManager(smart_connect)
 
-    all_tokens = []
-    for strike, records in token_values.items():
-        for record in records:
-            all_tokens.append(record['token'])
+        # Extract tokens from token_values
+        exchange_tokens_list = []
+        for strike, records in token_values.items():
+            for record in records:
+                exchange_tokens_list.append(str(record['token']))
+        exchange_tokens = {"NFO": exchange_tokens_list}
 
-    token_to_symbol = {}
-    for strike, records in token_values.items():
-        for record in records:
-            token_to_symbol[record['token']] = record['symbol']
+        # Define end time: 3:30 PM IST (UTC+5:30)
+        ist_offset = timedelta(hours=5, minutes=30)
+        end_time = datetime.now(timezone.utc) + ist_offset
+        end_time = end_time.replace(
+            hour=15, minute=30, second=0, microsecond=0)
 
-    # Create an instance of the AngelOneWebSocket class using the authentication token and feed token
-    angelone_websocket = AngelOneWebSocket(
-        auth_token, feed_token, token_to_symbol)
-    # Connect to the AngelOne WebSocket using the authentication token and feed token
-    angelone_websocket.start_connection()
+        # CSV filename: Nifty_day_open_yyyymmdd.csv
+        current_date = datetime.now().strftime('%Y%m%d')
+        csv_filename = f"Nifty_{day_open}_{current_date}.csv"
+        csv_path = os.path.join('.', csv_filename)
 
-    nifty_tokens = [{"exchangeType": 2, "tokens": all_tokens}]
-    # Subscribe to the specified NIFTY tokens to receive real-time data updates
-    angelone_websocket.subscribe(nifty_tokens)
+        # print(f"\nCSV file will be saved as: {csv_filename}")
+        # print(f"Day open value used in filename: {day_open}")
 
-    try:
-      # Keep the main thread alive
-        while True:
-            time.sleep(60)  # Keep the main thread alive for 1 minute (adjust as needed)
+        # Define columns to remove
+        columns_to_remove = ['exchange','symbolToken','lastTradeQty','netChange','percentChange','avgPrice','lowerCircuit','upperCircuit', 'exchTradeTime','52WeekLow','52WeekHigh', 'depth', 'timestamp']
 
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-        angelone_websocket.stop_connection()
+        # Loop every minute until 3:30 PM IST
+        while datetime.now(timezone.utc) + ist_offset < end_time:
+            # Fetch and display data
+            live_df = live_data_manager.get_live_market_data_as_dataframe(
+                "FULL", exchange_tokens)
 
-    """----------------------------------------------End of Websocket Connection and Data Handling---------------------------------------------- """
+            if not live_df.empty:
+                # Add timestamp column (for reference but will be removed before saving)
+                live_df['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                # Remove specified columns (only if they exist in the dataframe)
+                columns_to_drop = [
+                    col for col in columns_to_remove if col in live_df.columns]
+                if columns_to_drop:
+                    live_df = live_df.drop(columns=columns_to_drop)
+                    # print(f"\nRemoved columns: {columns_to_drop}")
+
+                # Check if file exists to determine if header should be written
+                file_exists = os.path.exists(csv_path)
+
+                # Append to CSV without the removed columns
+                live_df.to_csv(csv_path, mode='a', index=False,
+                               header=not file_exists)
+                print(f"Data appended to {csv_path} at {datetime.now().strftime('%H:%M:%S')}")
+                # print(f"Columns saved ({len(live_df.columns)} columns): {list(live_df.columns)}")
+                # print(f"Rows saved: {len(live_df)}")
+            else:
+                print("No live market data fetched")
+
+            # Sleep for 60 seconds
+            time.sleep(60)
+
+        print(f"\n{'='*60}")
+        print(f"Loop ended. Final CSV saved at: {csv_path}")
+        print(f"Total runtime: {time.time() - start_time:.2f} seconds")
+        print(f"{'='*60}")
+    else:
+        print("\nLive Market Data is not available")
+
+    print(f"\nCSV file will be saved as: {csv_filename}")
+    print(f"Day open value used in filename: {day_open}")
+    print(f"\nLive market data fetching completed in {time.time() - start_time:.2f} seconds\n")
+
+    """------------------------------------------------- End of Live Market Data Fetching -----------------------------------"""
