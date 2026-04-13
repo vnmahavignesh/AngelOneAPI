@@ -1,124 +1,139 @@
 import os
 import time
-from AngelOneWebSocket import AngelOneWebSocket
+import datetime
+from AngelOneWebSocket1m import AngelOneWebSocket
 from Login import Login
 from Masterlist import Masterlist
 
 """---------------------------------------------Global Variables Start-------------------------------------------------------"""
 
-# Global variables to store session data, token DataFrame, day open price, and strike range
 session_data = None
 token_df = None
 day_open = int(os.getenv("DAY_OPEN"))
 strike_range = int(os.getenv("STRIKE_LEVELS"))
 
-# Calculate the strike values based on the day open and strike range
-# Generate strike values around the day open price, with a step of 50, based on the specified strike range (e.g., if strike_range is 15, it will generate 31 strike values from day_open - 750 to day_open + 750)
+# Calculate strike values
 values = [day_open + i * (int(os.getenv("STRIKE_STEP")))
           for i in range(-strike_range, strike_range + 1)]
-print("Values:", values)  # Print the calculated strike values for verification
+print("Strike values:", values)
 
-"""---------------------------------------------Global Variables End-------------------------------------------------------"""
+def wait_for_market_start():
+    """Wait until market start time (9:15 AM)"""
+    print("Waiting for market to start at 9:15 AM...")
+    while True:
+        now = datetime.datetime.now()
+        current_time = now.time()
+        market_start = datetime.time(9, 15, 0)
+        
+        if current_time >= market_start:
+            print(f"Market opened at {now.strftime('%H:%M:%S')}")
+            return True
+        
+        # Calculate seconds until market start
+        next_start = datetime.datetime.combine(now.date(), market_start)
+        wait_seconds = (next_start - now).total_seconds()
+        
+        if wait_seconds > 0:
+            print(f"Market starts in {wait_seconds/60:.1f} minutes...")
+            time.sleep(min(wait_seconds, 300))  # Sleep in 5-minute intervals
 
-"""---------------------------------------------Main Execution Start-------------------------------------------------------"""
+"""---------------------------------------------Main Execution-------------------------------------------------------"""
 if __name__ == "__main__":
 
-    # Record the start time
     start_time = time.time()
+    
+    # Wait for market to start
+    wait_for_market_start()
 
     """------------------------------------------------- Masterlist -------------------------------------------------------"""
-    master = Masterlist()  # Create an instance of the Masterlist class to fetch the master list data
-    # Get the token DataFrame from the master list instance and print it
+    master = Masterlist()
     token_df = master.get_token_df()
-    # print(token_df) # Print the token DataFrame to verify that it has been loaded correctly
-    # Print the time taken to load the master list data
     print(f"\nMasterlist loaded in {time.time() - start_time:.2f} seconds")
-    # Print a success message with the number of records fetched
-    print(f"\nMasterlist successfully fetched with {len(token_df)} records!")
+    print(f"Total records: {len(token_df)}")
 
-    # Get the token values for the specified expiry date and strike levels, and print them
+    # Get token values for strikes
     token_values = master.get_nifty_strike_map(
         os.getenv("EXPIRY_DATE"), values, os.getenv("INSTRUMENT_NAME"))
-    # print the token values for the specified expiry date and strike levels
-    print("\nToken values for NIFTY strikes at expiry " +
-          os.getenv("EXPIRY_DATE")+":")
-
-    # print the total number of records fetched for the token values
-    total_records = sum(len(records) for records in token_values.values())
-    # Print the total number of records fetched for the specified expiry date and strike levels
-    print(f"Total records: {total_records}")
-
-    # for strike, records in token_values.items(): # Print the strike price and corresponding symbol/token records for each strike level
-    #     print(f"Strike: {strike}")
-    #     for record in records:
-    #         print(f"  Symbol: {record['symbol']}, Token: {record['token']}")
-
-    """------------------------------------------------ End of Masterlist -------------------------------------------------"""
-
-    """-------------------------------------------------- Login to the API ------------------------------------------------"""
-    login_manager = Login()  # Create an instance of the LoginManager class and login to the API
-    # Call the login method and store the session data and print it
-    session_data = login_manager.login()
-    # print("\nSession Data: \n", session_data)
-
-    # Check if login was successful and print the smart connect object, otherwise print a failure message
-    # Note: The smart connect object is only printed if the login is successful, otherwise it will not be available
-    # This is because the smart connect object is only created and returned in the session data if the login is successful. If the login fails, the session data will not contain a valid smart connect object, and attempting to print it would result in an error. Therefore, we check for a successful login before trying to access and print the smart connect object.
-    if session_data['status'] == 'success':
-        # Print a success message if the login was successful
-        print("\nLogin successful!")
-        # Print the time taken to login
-        print(f"\nLogin successful! in {time.time() - start_time:.2f} seconds")
-
-        # Get the smart connect object from the session data
-        smart_connect = session_data['connection']
-        # Print the smart connect object to verify that it has been created successfully
-        print("\nSmart Connect Object:\n", smart_connect)
-
-        # Get the authentication token from the session data and print it
-        auth_token = session_data['data']['jwtToken']
-        # Print the authentication token to verify that it has been retrieved successfully
-        print("\nAuthentication Token:\n", auth_token)
-
-        # Get the feed token from the session data and print it
-        feed_token = session_data['data']['feedToken']
-        # Print the feed token to verify that it has been retrieved successfully
-        print("\nFeed Token:\n", feed_token)
-    else:
-        # Print a failure message if the login was not successful
-        print("\nLogin failed!")
-
-    """------------------------------------------------- End of Login -------------------------------------------------------"""
-
-    """----------------------------------------------Websocket Connection and Data Handling---------------------------------------------- """
-
+    
+    # Extract tokens and create mappings
     all_tokens = []
+    token_to_symbol = {}
+    token_to_strike = {}
+    
     for strike, records in token_values.items():
         for record in records:
             all_tokens.append(record['token'])
-
-    token_to_symbol = {}
-    for strike, records in token_values.items():
-        for record in records:
             token_to_symbol[record['token']] = record['symbol']
+            token_to_strike[record['token']] = strike
+    
+    print(f"\nTotal tokens to subscribe: {len(all_tokens)}")
+    print(f"Sample tokens: {all_tokens[:5]}")
 
-    # Create an instance of the AngelOneWebSocket class using the authentication token and feed token
+    """-------------------------------------------------- Login -------------------------------------------------------"""
+    login_manager = Login()
+    session_data = login_manager.login()
+
+    if session_data['status'] != 'success':
+        print("Login failed!")
+        exit(1)
+
+    print(f"Login successful in {time.time() - start_time:.2f} seconds")
+    
+    auth_token = session_data['data']['jwtToken']
+    feed_token = session_data['data']['feedToken']
+
+    """----------------------------------------------Websocket Connection----------------------------------------------"""
+    
+    # Create WebSocket instance
     angelone_websocket = AngelOneWebSocket(
-        auth_token, feed_token, token_to_symbol)
-    # Connect to the AngelOne WebSocket using the authentication token and feed token
+        auth_token, feed_token, token_to_symbol, token_to_strike, login_manager)
+    
+    # Start connection
     angelone_websocket.start_connection()
-
-    nifty_tokens = [{"exchangeType": 2, "tokens": all_tokens}]
-    # Subscribe to the specified NIFTY tokens to receive real-time data updates
-    angelone_websocket.subscribe(nifty_tokens)
+    time.sleep(3)  # Wait for connection to establish
+    
+    # Prepare and subscribe to tokens
+    nifty_tokens = [{"exchangeType": 2, "tokens": all_tokens}]  # 2 = NFO
+    success = angelone_websocket.subscribe(nifty_tokens, mode=3, correlation_id="nifty_stream")
+    
+    if success:
+        print(f"\n✅ Successfully subscribed to {len(all_tokens)} NIFTY tokens")
+        print("📊 WebSocket is streaming live data...")
+        print(f"💾 Data will be saved to: nifty_websocket_data_YYYYMMDD.csv")
+        print("⏰ Data saved every minute (at :00 seconds)")
+        print("🛑 Press Ctrl+C to stop\n")
+    else:
+        print("Failed to subscribe. Exiting...")
+        exit(1)
 
     try:
-      # Keep the main thread alive
+        # Keep running until market closes
+        market_end_time = datetime.time(15, 31, 0)
+        
         while True:
-            time.sleep(60)  # Keep the main thread alive for 1 minute (adjust as needed)
-
+            current_time = datetime.datetime.now()
+            
+            # Check if market has closed (after 3:31 PM)
+            if current_time.time() > market_end_time:
+                print(f"\n🏁 Market closed at {current_time.strftime('%H:%M:%S')}. Stopping...")
+                break
+            
+            # Print status every 5 minutes
+            if int(time.time()) % 300 == 0:
+                print(f"\n[Status] {current_time.strftime('%H:%M:%S')} - Connected: {angelone_websocket.is_connected}")
+                if angelone_websocket.latest_data is not None:
+                    latest = angelone_websocket.latest_data.iloc[0]
+                    print(f"[Status] Latest data - {latest['symbol']} LTP: {latest['ltp']}")
+                print(f"[Status] Minute data collected: {len(angelone_websocket.current_minute_data)} ticks this minute\n")
+            
+            time.sleep(60)  # Check every minute
+            
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        print("\n\n🛑 User interrupted. Shutting down...")
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+    finally:
         angelone_websocket.stop_connection()
-
-    """----------------------------------------------End of Websocket Connection and Data Handling---------------------------------------------- """
+        print(f"\n✅ WebSocket connection closed.")
+        print(f"📁 Data saved in: nifty_websocket_data_*.csv")
+        print(f"⏱️  Total runtime: {(time.time() - start_time) / 60:.2f} minutes")
