@@ -1,28 +1,29 @@
-name: Test Workflow GA Branch
+name: Daily Market Automation
 
 on:
   workflow_dispatch:
     inputs:
       day_open:
-        description: 'Day Open'
+        description: 'NIFTY Day Open Price'
         required: true
+        type: string
         default: '22400'
       expiry_date:
-        description: 'Expiry Date'
+        description: 'Expiry Date (DD-MM-YYYY)'
         required: true
+        type: string
         default: '21-04-2026'
 
 jobs:
-  test:
+  run-market-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 400  # 6 hours 40 minutes buffer for market hours
+    timeout-minutes: 400
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        persist-credentials: true
-        ref: GA  # Explicitly checkout GA branch
+        ref: GA
     
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -34,7 +35,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install pandas requests python-dotenv pyotp SmartApi
     
-    - name: Prepare .env file with inputs
+    - name: Prepare .env file
       env:
         API_KEY: ${{ secrets.API_KEY }}
         CLIENT_ID: ${{ secrets.CLIENT_ID }}
@@ -47,7 +48,6 @@ jobs:
         DAY_OPEN: ${{ github.event.inputs.day_open }}
         
       run: |
-        # Create .env file
         cat > .env << EOF
         API_KEY=${API_KEY}
         CLIENT_ID=${CLIENT_ID}
@@ -61,29 +61,8 @@ jobs:
         EOF
         
         echo "========================================="
-        echo ".env file created at $(date)"
-        echo "========================================="
         echo "DAY_OPEN: ${DAY_OPEN}"
         echo "EXPIRY_DATE: ${EXPIRY_DATE}"
-        echo "INSTRUMENT_NAME: ${INSTRUMENT_NAME}"
-        echo "STRIKE_LEVELS: ${STRIKE_LEVELS}"
-        echo "STRIKE_STEP: ${STRIKE_STEP}"
-        echo "Running on branch: ${{ github.ref_name }}"
-        echo "========================================="
-    
-    - name: Display .env file (masked)
-      run: |
-        echo "Verifying .env file contents:"
-        cat .env | sed 's/=.*/=***/'
-    
-    - name: Show Inputs (Test)
-      run: |
-        echo "========================================="
-        echo "TEST INPUTS VERIFICATION"
-        echo "========================================="
-        echo "Day Open: ${{ github.event.inputs.day_open }}"
-        echo "Expiry Date: ${{ github.event.inputs.expiry_date }}"
-        echo "Running on branch: ${{ github.ref_name }}"
         echo "========================================="
     
     - name: Run live market data collection
@@ -93,7 +72,7 @@ jobs:
         PYTHONUNBUFFERED: 1
     
     - name: Upload CSV data as artifact
-      if: always()  # Upload even if script fails
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: nifty-market-data-${{ github.run_id }}
@@ -107,16 +86,3 @@ jobs:
         name: execution-logs-${{ github.run_id }}
         path: logs/
         retention-days: 30
-    
-    - name: List generated files
-      if: always()
-      run: |
-        echo "========================================="
-        echo "GENERATED FILES"
-        echo "========================================="
-        echo "CSV files:"
-        ls -la Nifty_*.csv 2>/dev/null || echo "No CSV files found"
-        echo ""
-        echo "Log files:"
-        ls -la logs/ 2>/dev/null || echo "No log files found"
-        echo "========================================="
