@@ -87,7 +87,7 @@ jobs:
     
     - name: Run live market data collection
       run: |
-        python LiveMarketDataMainAutomatic.py
+        python LiveMarketDataMainAutomaticGA.py
       env:
         PYTHONUNBUFFERED: 1
     
@@ -106,6 +106,14 @@ jobs:
         name: execution-logs-${{ github.run_id }}
         path: logs/
         retention-days: 30
+    
+    - name: Commit CSV file to repository
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add Nifty_*.csv
+        git commit -m "Add market data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+        git push
     
     - name: Commit updated .env if changed (optional)
       if: github.event.inputs.day_open != '' || github.event.inputs.expiry_date != ''
