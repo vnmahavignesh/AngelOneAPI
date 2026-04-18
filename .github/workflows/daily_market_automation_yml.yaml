@@ -1,0 +1,138 @@
+name: Daily Market Automation
+
+on:
+  # Trigger on push to GA branch (including when you update YAML at 9:10)
+  push:
+    branches:
+      - GA
+    paths:
+      - '.github/workflows/daily_market_automation.yaml'  # Trigger when YAML changes
+      - 'LiveMarketDataMainAutomaticGA.py'               # Or when Python changes
+  
+  # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday
+  schedule:
+    - cron: '40 3 * * 1-5'
+  
+  # Allow manual trigger with custom values
+  workflow_dispatch:
+    inputs:
+      day_open:
+        description: 'NIFTY Day Open Price (optional)'
+        required: false
+        type: string
+      expiry_date:
+        description: 'Expiry Date (DD-MM-YYYY) (optional)'
+        required: false
+        type: string
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 400
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+        fetch-depth: 0  # Fetch all history to get latest YAML values
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas requests python-dotenv pyotp SmartApi
+    
+    - name: Read values from YAML file
+      id: read-yaml
+      run: |
+        # Extract DAY_OPEN and EXPIRY_DATE from the YAML file
+        DAY_OPEN=$(grep "DAY_OPEN:" .github/workflows/daily_market_automation.yaml | grep -o '[0-9]\+' | head -1)
+        EXPIRY_DATE=$(grep "EXPIRY_DATE:" .github/workflows/daily_market_automation.yaml | grep -o "[0-9]\+-[0-9]\+-[0-9]\+" | head -1)
+        
+        echo "day_open=${DAY_OPEN:-22400}" >> $GITHUB_OUTPUT
+        echo "expiry_date=${EXPIRY_DATE:-21-04-2026}" >> $GITHUB_OUTPUT
+        
+        echo "Found DAY_OPEN: ${DAY_OPEN:-22400}"
+        echo "Found EXPIRY_DATE: ${EXPIRY_DATE:-21-04-2026}"
+    
+    - name: Prepare .env file with latest values
+      env:
+        API_KEY: ${{ secrets.API_KEY }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        PIN: ${{ secrets.PIN }}
+        TOTP_TOKEN: ${{ secrets.TOTP_TOKEN }}
+        INSTRUMENT_NAME: "NIFTY"
+        STRIKE_STEP: "50"
+        STRIKE_LEVELS: "12"
+        # Use values from YAML (manual input takes priority, then YAML values, then defaults)
+        EXPIRY_DATE: ${{ github.event.inputs.expiry_date || '21-04-2026' }}
+        DAY_OPEN: ${{ github.event.inputs.day_open || '22400' }}
+        
+      run: |
+        # Create .env file
+        cat > .env << EOF
+        API_KEY=${API_KEY}
+        CLIENT_ID=${CLIENT_ID}
+        PIN=${PIN}
+        TOTP_TOKEN=${TOTP_TOKEN}
+        EXPIRY_DATE=${EXPIRY_DATE}
+        INSTRUMENT_NAME=${INSTRUMENT_NAME}
+        DAY_OPEN=${DAY_OPEN}
+        STRIKE_LEVELS=${STRIKE_LEVELS}
+        STRIKE_STEP=${STRIKE_STEP}
+        EOF
+        
+        echo "========================================="
+        echo ".env file created at $(date)"
+        echo "========================================="
+        echo "DAY_OPEN: ${DAY_OPEN}"
+        echo "EXPIRY_DATE: ${EXPIRY_DATE}"
+        echo "INSTRUMENT_NAME: ${INSTRUMENT_NAME}"
+        echo "STRIKE_LEVELS: ${STRIKE_LEVELS}"
+        echo "STRIKE_STEP: ${STRIKE_STEP}"
+        echo "========================================="
+    
+    - name: Display .env file (masked)
+      run: |
+        echo "Verifying .env file contents:"
+        cat .env | sed 's/=.*/=***/'
+    
+    - name: Run live market data collection
+      run: |
+        python LiveMarketDataMainAutomaticGA.py
+      env:
+        PYTHONUNBUFFERED: 1
+    
+    - name: Upload CSV data as artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: nifty-market-data-${{ github.run_id }}
+        path: Nifty_*.csv
+        retention-days: 30
+    
+    - name: Upload log files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: execution-logs-${{ github.run_id }}
+        path: logs/
+        retention-days: 30
+    
+    - name: Commit CSV file to repository
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add Nifty_*.csv
+        git commit -m "Add market data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+        git push origin GA
