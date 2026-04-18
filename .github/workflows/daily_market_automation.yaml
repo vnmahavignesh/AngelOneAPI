@@ -8,5 +8,3 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "Manual trigger works on GA branch!"
-
-      
