@@ -1,88 +1,10 @@
-name: Daily Market Automation
+name: Test Manual Trigger
 
 on:
   workflow_dispatch:
-    inputs:
-      day_open:
-        description: 'NIFTY Day Open Price'
-        required: true
-        type: string
-        default: '22400'
-      expiry_date:
-        description: 'Expiry Date (DD-MM-YYYY)'
-        required: true
-        type: string
-        default: '21-04-2026'
 
 jobs:
-  run-market-data:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 400
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        ref: GA
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pandas requests python-dotenv pyotp SmartApi
-    
-    - name: Prepare .env file
-      env:
-        API_KEY: ${{ secrets.API_KEY }}
-        CLIENT_ID: ${{ secrets.CLIENT_ID }}
-        PIN: ${{ secrets.PIN }}
-        TOTP_TOKEN: ${{ secrets.TOTP_TOKEN }}
-        INSTRUMENT_NAME: "NIFTY"
-        STRIKE_STEP: "50"
-        STRIKE_LEVELS: "12"
-        EXPIRY_DATE: ${{ github.event.inputs.expiry_date }}
-        DAY_OPEN: ${{ github.event.inputs.day_open }}
-        
-      run: |
-        cat > .env << EOF
-        API_KEY=${API_KEY}
-        CLIENT_ID=${CLIENT_ID}
-        PIN=${PIN}
-        TOTP_TOKEN=${TOTP_TOKEN}
-        EXPIRY_DATE=${EXPIRY_DATE}
-        INSTRUMENT_NAME=${INSTRUMENT_NAME}
-        DAY_OPEN=${DAY_OPEN}
-        STRIKE_LEVELS=${STRIKE_LEVELS}
-        STRIKE_STEP=${STRIKE_STEP}
-        EOF
-        
-        echo "========================================="
-        echo "DAY_OPEN: ${DAY_OPEN}"
-        echo "EXPIRY_DATE: ${EXPIRY_DATE}"
-        echo "========================================="
-    
-    - name: Run live market data collection
-      run: |
-        python LiveMarketDataMainAutomaticGA.py
-      env:
-        PYTHONUNBUFFERED: 1
-    
-    - name: Upload CSV data as artifact
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: nifty-market-data-${{ github.run_id }}
-        path: Nifty_*.csv
-        retention-days: 30
-    
-    - name: Upload log files
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: execution-logs-${{ github.run_id }}
-        path: logs/
-        retention-days: 30
+      - run: echo "Manual trigger works on GA branch!"
