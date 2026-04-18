@@ -1,4 +1,4 @@
-name: Daily Market Automation
+name: Daily Market Automation yaml
 
 on:
   # Trigger on push to GA branch (including when you update YAML at 9:10)
