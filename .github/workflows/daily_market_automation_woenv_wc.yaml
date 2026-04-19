@@ -1,0 +1,227 @@
+name: LiveMarketDataWC (Login without .env) #--Login implementation in yaml---
+
+on:
+  # Trigger on push to GA branch
+  push:
+    branches:
+      - GA
+    paths:
+      - '.github/workflows/daily_market_automation_woenv_wc.yaml'
+      - 'LiveMarketDataMainAutomaticGA.py'
+  
+  # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday
+  schedule:
+    - cron: '40 3 * * 1-5'
+  
+  # Allow manual trigger with custom values
+  workflow_dispatch:
+    inputs:
+      day_open:
+        description: 'NIFTY Day Open Price (optional)'
+        required: false
+        type: string
+      expiry_date:
+        description: 'Expiry Date (YYYY-MM-DD) (optional)'
+        required: false
+        type: string
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # Reduced to 6 hours max
+    
+    steps:
+    # Step 1: Clear GitHub Actions cache
+    - name: Clear GitHub Actions cache
+      run: |
+        echo "Clearing GitHub Actions cache..."
+        rm -rf ~/.cache/pip
+        rm -rf ~/.cache/pipenv
+        rm -rf ~/.local/share/virtualenvs
+        echo "Cache cleared successfully"
+    
+    # Step 2: Clean up any existing files from previous runs
+    - name: Clean up previous run artifacts
+      run: |
+        echo "Cleaning up previous run files..."
+        rm -rf Nifty_*.csv
+        rm -rf logs/
+        rm -rf __pycache__/
+        rm -rf *.pyc
+        rm -rf .pytest_cache/
+        echo "Cleanup completed"
+    
+    # Step 3: Clear Docker cache (if any)
+    - name: Clear Docker cache
+      run: |
+        echo "Clearing Docker cache..."
+        docker system prune -af --volumes 2>/dev/null || echo "Docker not available, skipping"
+    
+    # Step 4: Checkout code
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+        fetch-depth: 0  # Full history for proper cleanup
+    
+    # Step 5: Clear Python cache
+    - name: Clear Python cache
+      run: |
+        echo "Clearing Python cache..."
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+        find . -type f -name "*.pyc" -delete
+        find . -type f -name "*.pyo" -delete
+        echo "Python cache cleared"
+    
+    # Step 6: Set up Python with fresh cache
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'  # This will cache pip packages but fresh for each run
+        cache-dependency-path: |
+          requirements.txt
+          **/*.py
+    
+    # Step 7: Clear pip cache and install dependencies fresh
+    - name: Install dependencies (fresh install)
+      run: |
+        python -m pip install --upgrade pip
+        pip cache purge  # Clear pip cache
+        pip install --no-cache-dir pandas requests python-dotenv pyotp
+        pip install --no-cache-dir smartapi-python
+        # Verify installation
+        python -c "from SmartApi import SmartConnect; print('✓ SmartApi installed successfully')"
+    
+    # Step 8: Set environment variables directly
+    - name: Set environment variables
+      run: |
+        # Clear any existing env variables
+        unset API_KEY CLIENT_ID PIN TOTP_TOKEN DAY_OPEN EXPIRY_DATE
+        
+        # Set all variables as environment variables
+        echo "API_KEY=tqRZKkAT" >> $GITHUB_ENV
+        echo "CLIENT_ID=AACG158944" >> $GITHUB_ENV
+        echo "PIN=1245" >> $GITHUB_ENV
+        echo "TOTP_TOKEN=XAJZMATYQ3J3PRZQO53FVTHNRU" >> $GITHUB_ENV
+        echo "STRIKE_STEP=50" >> $GITHUB_ENV
+        echo "INSTRUMENT_NAME=NIFTY" >> $GITHUB_ENV
+        echo "STRIKE_LEVELS=12" >> $GITHUB_ENV
+        echo "EXCHANGE=NFO" >> $GITHUB_ENV
+        echo "INTERVAL=ONE_MINUTE" >> $GITHUB_ENV
+        echo "FROM_DATE=2026-04-17 09:15" >> $GITHUB_ENV
+        echo "TO_DATE=2026-04-17 15:30" >> $GITHUB_ENV
+        
+        # Set DAY_OPEN and EXPIRY_DATE with manual override support
+        if [ -n "${{ github.event.inputs.day_open }}" ]; then
+          echo "DAY_OPEN=${{ github.event.inputs.day_open }}" >> $GITHUB_ENV
+        else
+          echo "DAY_OPEN=24150" >> $GITHUB_ENV
+        fi
+        
+        if [ -n "${{ github.event.inputs.expiry_date }}" ]; then
+          echo "EXPIRY_DATE=${{ github.event.inputs.expiry_date }}" >> $GITHUB_ENV
+        else
+          echo "EXPIRY_DATE=2026-04-21" >> $GITHUB_ENV
+        fi
+        
+        echo "Environment variables set successfully"
+    
+    # Step 9: Update Login.py to use environment variables directly
+    - name: Update Login.py
+      run: |
+        cat > Login.py << 'EOF'
+        """Login module for AngelOne SmartAPI - Reads directly from environment variables"""
+        
+        import os
+        import pyotp
+        from SmartApi.smartConnect import SmartConnect
+        
+        class Login:
+            """Handles authentication with the AngelOne SmartAPI."""
+        
+            def __init__(self):
+                self.apikey    = os.getenv("API_KEY")
+                self.client_id = os.getenv("CLIENT_ID")
+                self.pin       = os.getenv("PIN")
+                self.token     = os.getenv("TOTP_TOKEN")
+        
+                if not all([self.apikey, self.client_id, self.pin, self.token]):
+                    raise EnvironmentError(
+                        "One or more required environment variables are missing. "
+                        "Please check: API_KEY, CLIENT_ID, PIN, TOTP_TOKEN"
+                    )
+        
+            def login(self) -> dict:
+                totp          = pyotp.TOTP(self.token).now()
+                smart_connect = SmartConnect(self.apikey)
+                response      = smart_connect.generateSession(self.client_id, self.pin, totp)
+        
+                if response.get("status") is True and response.get("message") == "SUCCESS":
+                    return {
+                        "status"     : "success",
+                        "connection" : smart_connect,
+                        "data"       : response["data"],
+                    }
+                else:
+                    return {
+                        "status"    : "error",
+                        "message"   : response.get("message", "Unknown error"),
+                        "errorcode" : response.get("errorcode", ""),
+                    }
+        EOF
+        echo "✓ Login.py updated"
+    
+    # Step 10: Run live market data collection
+    - name: Run live market data collection
+      run: |
+        # Display free disk space before running
+        echo "Free disk space before execution:"
+        df -h
+        
+        python LiveMarketDataMainAutomaticGA.py
+        
+      env:
+        PYTHONUNBUFFERED: 1
+        PYTHONDONTWRITEBYTECODE: 1  # Prevent creating .pyc files
+    
+    # Step 11: Upload CSV data as artifact
+    - name: Upload CSV data as artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: nifty-market-data-${{ github.run_id }}
+        path: Nifty_*.csv
+        retention-days: 30
+    
+    # Step 12: Upload log files
+    - name: Upload log files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: execution-logs-${{ github.run_id }}
+        path: logs/
+        retention-days: 30
+    
+    # Step 13: Commit CSV file to repository
+    - name: Commit CSV file to repository
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add Nifty_*.csv
+        git commit -m "Add market data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+        git push
+    
+    # Step 14: Clean up after workflow (optional)
+    - name: Post-run cleanup
+      if: always()
+      run: |
+        echo "Performing post-run cleanup..."
+        rm -rf Nifty_*.csv
+        rm -rf logs/
+        echo "Cleanup completed"
