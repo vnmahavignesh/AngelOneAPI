@@ -92,11 +92,14 @@ jobs:
     - name: Install dependencies (fresh install)
       run: |
         python -m pip install --upgrade pip
-        pip cache purge  # Clear pip cache
-        pip install --no-cache-dir pandas requests python-dotenv pyotp
-        pip install --no-cache-dir smartapi-python
+        pip install pandas requests 
+        pip install python-dotenv 
+        pip install pyotp
+        pip install smartapi-python
+        pip install logzero
+        pip install websocket-client
         # Verify installation
-        python -c "from SmartApi import SmartConnect; print('✓ SmartApi installed successfully')"
+        python -c "from SmartApi import SmartConnect; print('SmartApi installed successfully')"
     
     # Step 8: Set environment variables directly
     - name: Set environment variables
