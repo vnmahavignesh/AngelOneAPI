@@ -50,7 +50,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pandas requests python-dotenv pyotp SmartApi
+        pip install pandas requests 
+        pip install python-dotenv 
+        pip install pyotp
+        pip install smartapi-python
+        # Verify installation
+        python -c "from SmartApi import SmartConnect; print('SmartApi installed successfully')"
     
     - name: Read values from YAML file
       id: read-yaml
