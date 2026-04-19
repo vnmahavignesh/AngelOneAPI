@@ -54,6 +54,7 @@ jobs:
         pip install python-dotenv 
         pip install pyotp
         pip install smartapi-python
+        pip install logzero
         # Verify installation
         python -c "from SmartApi import SmartConnect; print('SmartApi installed successfully')"
     
