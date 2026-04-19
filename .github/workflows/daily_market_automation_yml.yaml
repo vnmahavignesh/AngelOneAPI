@@ -55,6 +55,7 @@ jobs:
         pip install pyotp
         pip install smartapi-python
         pip install logzero
+        pip install websocket-client
         # Verify installation
         python -c "from SmartApi import SmartConnect; print('SmartApi installed successfully')"
     
