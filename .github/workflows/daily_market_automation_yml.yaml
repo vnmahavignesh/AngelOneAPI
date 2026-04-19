@@ -18,11 +18,11 @@ on:
     inputs:
       day_open:
         description: 'NIFTY Day Open Price (optional)'
-        required: false
+        required: true
         type: string
       expiry_date:
         description: 'Expiry Date (DD-MM-YYYY) (optional)'
-        required: false
+        required: true
         type: string
 
 # Prevent concurrent runs
@@ -75,8 +75,8 @@ jobs:
         STRIKE_STEP: "50"
         STRIKE_LEVELS: "12"
         # Use values from YAML (manual input takes priority, then YAML values, then defaults)
-        EXPIRY_DATE: ${{ github.event.inputs.expiry_date || '21-04-2026' }}
-        DAY_OPEN: ${{ github.event.inputs.day_open || '22400' }}
+        EXPIRY_DATE: ${{ github.event.inputs.expiry_date}}
+        DAY_OPEN: ${{ github.event.inputs.day_open}}
         
       run: |
         # Create .env file
