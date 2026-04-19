@@ -84,10 +84,10 @@ jobs:
     - name: Set environment variables directly
       run: |
         # Set all variables as environment variables
-        echo "API_KEY=aaaa" >> $GITHUB_ENV
-        echo "CLIENT_ID=aaa" >> $GITHUB_ENV
-        echo "PIN=aaaa" >> $GITHUB_ENV
-        echo "TOTP_TOKEN=aaaa" >> $GITHUB_ENV
+        echo "API_KEY=tqRZKkAT" >> $GITHUB_ENV
+        echo "CLIENT_ID=AACG158944" >> $GITHUB_ENV
+        echo "PIN=1245" >> $GITHUB_ENV
+        echo "TOTP_TOKEN=XAJZMATYQ3J3PRZQO53FVTHNRU" >> $GITHUB_ENV
         echo "STRIKE_STEP=50" >> $GITHUB_ENV
         echo "INSTRUMENT_NAME=NIFTY" >> $GITHUB_ENV
         echo "STRIKE_LEVELS=12" >> $GITHUB_ENV
