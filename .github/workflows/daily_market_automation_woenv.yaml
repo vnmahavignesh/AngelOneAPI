@@ -1,4 +1,4 @@
-name: Daily Market Automation without .env
+name: LiveMarketData (Login without .env) #--Login implementation in yaml---
 
 on:
   # Trigger on push to GA branch
@@ -6,7 +6,7 @@ on:
     branches:
       - GA
     paths:
-      - '.github/workflows/daily_market_automation.yaml'
+      - '.github/workflows/daily_market_automation_woenv.yaml'
       - 'LiveMarketDataMainAutomaticGA.py'
   
   # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday

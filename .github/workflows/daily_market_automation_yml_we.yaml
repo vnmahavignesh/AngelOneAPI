@@ -1,4 +1,4 @@
-name: Daily Market Automation yamlwe
+name: LiveMarketData(WE) #(WE = With Environment variables set in YAML)
 
 on:
   # Trigger on push to GA branch (including when you update YAML at 9:10)
@@ -6,7 +6,7 @@ on:
     branches:
       - GA
     paths:
-      - '.github/workflows/daily_market_automation.yaml'  # Trigger when YAML changes
+      - '.github/workflows/daily_market_automation_yml_we.yaml'  # Trigger when YAML changes
       - 'LiveMarketDataMainAutomaticGA.py'               # Or when Python changes
   
   # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday
