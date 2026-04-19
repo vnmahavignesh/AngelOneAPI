@@ -7,7 +7,7 @@ on:
       - GA
     paths:
       - '.github/workflows/daily_market_automation_yml_we.yaml'  # Trigger when YAML changes
-      - 'LiveMarketDataMainAutomaticGA.py'               # Or when Python changes
+      # - 'LiveMarketDataMainAutomaticGA.py'               # Or when Python changes
   
   # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday
   schedule:
