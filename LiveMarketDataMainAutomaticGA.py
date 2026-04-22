@@ -203,7 +203,7 @@ if __name__ == "__main__":
         # Define end time: 3:30 PM IST (UTC+5:30) changed to 3.15 PM
         end_time = datetime.now(timezone.utc) + ist_offset
         end_time = end_time.replace(
-            hour=15, minute=15, second=0, microsecond=0)
+            hour=15, minute=0, second=0, microsecond=0)
 
         # CSV filename: Nifty_day_open_yyyymmdd.csv
         current_date = datetime.now().strftime('%Y%m%d')
