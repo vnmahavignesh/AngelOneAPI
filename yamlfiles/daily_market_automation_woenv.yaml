@@ -1,0 +1,199 @@
+name: LiveMarketData (Login without .env) #--Login implementation in yaml---
+
+on:
+  # Trigger on push to GA branch
+  push:
+    branches:
+      - GA
+    paths:
+      - '.github/workflows/daily_market_automation_woenv.yaml'
+      # - 'LiveMarketDataMainAutomaticGA.py'
+  
+  # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday
+  schedule:
+    - cron: '40 3 * * 1-5'
+  
+  # Allow manual trigger with custom values
+  workflow_dispatch:
+    inputs:
+      day_open:
+        description: 'NIFTY Day Open Price (optional)'
+        required: true
+        type: string
+      expiry_date:
+        description: 'Expiry Date (YYYY-MM-DD) (optional)'
+        required: true
+        type: string
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 400
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas requests 
+        pip install python-dotenv 
+        pip install pyotp
+        pip install smartapi-python
+        pip install logzero
+        pip install websocket-client
+        # Verify installation
+        python -c "from SmartApi import SmartConnect; print('SmartApi installed successfully')"
+
+    - name: Set environment variables directly
+      run: |
+        # Set all variables as environment variables
+        echo "API_KEY=tqRZKkAT" >> $GITHUB_ENV
+        echo "CLIENT_ID=AACG158944" >> $GITHUB_ENV
+        echo "PIN=1245" >> $GITHUB_ENV
+        echo "TOTP_TOKEN=XAJZMATYQ3J3PRZQO53FVTHNRU" >> $GITHUB_ENV
+        echo "STRIKE_STEP=50" >> $GITHUB_ENV
+        echo "INSTRUMENT_NAME=NIFTY" >> $GITHUB_ENV
+        echo "STRIKE_LEVELS=12" >> $GITHUB_ENV
+        echo "EXCHANGE=NFO" >> $GITHUB_ENV
+        echo "INTERVAL=ONE_MINUTE" >> $GITHUB_ENV
+        echo "FROM_DATE=2026-04-17 09:15" >> $GITHUB_ENV
+        echo "TO_DATE=2026-04-17 15:30" >> $GITHUB_ENV
+        
+        # Set DAY_OPEN and EXPIRY_DATE with manual override support
+        if [ -n "${{ github.event.inputs.day_open }}" ]; then
+          echo "DAY_OPEN=${{ github.event.inputs.day_open }}" >> $GITHUB_ENV
+        else
+          echo "DAY_OPEN=24150" >> $GITHUB_ENV
+        fi
+        
+        if [ -n "${{ github.event.inputs.expiry_date }}" ]; then
+          echo "EXPIRY_DATE=${{ github.event.inputs.expiry_date }}" >> $GITHUB_ENV
+        else
+          echo "EXPIRY_DATE=2026-04-21" >> $GITHUB_ENV
+        fi
+        
+        echo "========================================="
+        echo "Environment variables set at $(date)"
+        echo "========================================="
+        echo "API_KEY: ***"
+        echo "CLIENT_ID: ***"
+        echo "PIN: ***"
+        echo "TOTP_TOKEN: ***"
+        echo "DAY_OPEN: ${DAY_OPEN:-24150}"
+        echo "EXPIRY_DATE: ${EXPIRY_DATE:-2026-04-21}"
+        echo "INSTRUMENT_NAME: NIFTY"
+        echo "STRIKE_LEVELS: 12"
+        echo "STRIKE_STEP: 50"
+        echo "EXCHANGE: NFO"
+        echo "INTERVAL: ONE_MINUTE"
+        echo "FROM_DATE: 2026-04-17 09:15"
+        echo "TO_DATE: 2026-04-17 15:30"
+        echo "========================================="
+    
+    - name: Update Login.py to use environment variables directly
+      run: |
+        # Create a modified Login.py that reads from os.environ instead of .env
+        cat > Login.py << 'EOF'
+        """Login module for AngelOne SmartAPI - Reads directly from environment variables"""
+        
+        import os
+        import pyotp
+        from SmartApi.smartConnect import SmartConnect
+        
+        class Login:
+            """Handles authentication with the AngelOne SmartAPI."""
+        
+            def __init__(self):
+                self.apikey    = os.getenv("API_KEY")
+                self.client_id = os.getenv("CLIENT_ID")
+                self.pin       = os.getenv("PIN")
+                self.token     = os.getenv("TOTP_TOKEN")
+        
+                if not all([self.apikey, self.client_id, self.pin, self.token]):
+                    raise EnvironmentError(
+                        "One or more required environment variables are missing. "
+                        "Please check: API_KEY, CLIENT_ID, PIN, TOTP_TOKEN"
+                    )
+        
+            def login(self) -> dict:
+                """
+                Generates TOTP, creates a SmartAPI session, and returns a normalised
+                session dict that main.py can consume directly.
+        
+                Returns:
+                    dict:
+                        On success:  {'status': 'success', 'connection': <SmartConnect>, 'data': {...}}
+                        On failure:  {'status': 'error',   'message': str, 'errorcode': str}
+                """
+                totp          = pyotp.TOTP(self.token).now()
+                smart_connect = SmartConnect(self.apikey)
+                response      = smart_connect.generateSession(self.client_id, self.pin, totp)
+        
+                if response.get("status") is True and response.get("message") == "SUCCESS":
+                    return {
+                        "status"     : "success",
+                        "connection" : smart_connect,
+                        "data"       : response["data"],
+                    }
+                else:
+                    return {
+                        "status"    : "error",
+                        "message"   : response.get("message", "Unknown error"),
+                        "errorcode" : response.get("errorcode", ""),
+                    }
+        EOF
+        
+        echo "✓ Login.py updated to use environment variables directly"
+    
+    - name: Update LiveMarketDataMainAutomaticGA.py to use environment variables
+      run: |
+        # Update the main script to remove .env dependency
+        sed -i 's/from dotenv import load_dotenv/# from dotenv import load_dotenv/g' LiveMarketDataMainAutomaticGA.py
+        sed -i 's/load_dotenv()/# load_dotenv()/g' LiveMarketDataMainAutomaticGA.py
+        
+        echo "✓ Updated LiveMarketDataMainAutomaticGA.py"
+    
+    - name: Run live market data collection
+      run: |
+        python LiveMarketDataMainAutomaticGA.py
+      env:
+        PYTHONUNBUFFERED: 1
+    
+    - name: Upload CSV data as artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: nifty-market-data-${{ github.run_id }}
+        path: Nifty_*.csv
+        retention-days: 30
+    
+    - name: Upload log files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: execution-logs-${{ github.run_id }}
+        path: logs/
+        retention-days: 30
+    
+    - name: Commit CSV file to repository
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add Nifty_*.csv
+        git commit -m "Add market data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+        git push origin GA
