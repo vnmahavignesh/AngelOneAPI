@@ -1,0 +1,231 @@
+name: HistoricData(WE-WC) #(WE = With Environment variables set in YAML)
+
+on:
+  # Trigger on push to GA branch (including when you update YAML at 9:10)
+  push:
+    branches:
+      - GA
+    paths:
+      - '.github/workflows/historic.yaml'  # Trigger when YAML changes
+     
+   
+  # Allow manual trigger with custom values
+  workflow_dispatch:
+    inputs:
+      day_open:
+        description: 'NIFTY Day Open Price (used in CSV filename: Nifty_{day_open}_{timestamp}.csv)'
+        required: true
+        type: string
+        default: '24450'
+      expiry_date:
+        description: 'Expiry Date (DD-MM-YYYY)'
+        required: true
+        type: string
+        default: '2026-04-28'
+      instrument_name:
+        description: 'Instrument Name'
+        required: true
+        type: string
+        default: 'NIFTY'
+      strike_levels:
+        description: 'Number of Strike Levels'
+        required: true
+        type: string
+        default: '12'
+      exchange:
+        description: 'Exchange'
+        required: true
+        type: string
+        default: 'NFO'
+      interval:
+        description: 'Data Interval'
+        required: true
+        type: string
+        default: 'ONE_MINUTE'
+      from_date:
+        description: 'From Date (YYYY-MM-DD HH:MM)'
+        required: true
+        type: string
+        default: '2026-04-17 09:15'
+      to_date:
+        description: 'To Date (YYYY-MM-DD HH:MM)'
+        required: true
+        type: string
+        default: '2026-04-17 15:30'
+
+# Prevent concurrent runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  historic-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 400
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+        fetch-depth: 0  # Fetch all history to get latest YAML values
+
+    # Clear all caches and old files right after checkout
+    - name: Clear all caches and old files
+      run: |
+        # Clear system caches
+        rm -rf ~/.cache/pip
+        rm -rf ~/.cache/pipenv
+        
+        # Clear Python cache files
+        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+        find . -type f -name "*.pyc" -delete
+        find . -type f -name "*.pyo" -delete
+        
+        # Clear old data files (matches Nifty_*.csv pattern from Historic.py)
+        rm -rf Nifty_*.csv
+        rm -rf logs/
+        rm -rf *.log
+        
+        # Clear pip cache
+        pip cache purge
+        
+        echo "✓ All caches and old files cleared"
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas requests 
+        pip install python-dotenv 
+        pip install pyotp
+        pip install smartapi-python
+        pip install logzero
+        pip install websocket-client
+        # Verify installation
+        python -c "from SmartApi import SmartConnect; print('SmartApi installed successfully')"
+    
+    - name: Set environment variables directly
+      run: |
+        # Set all variables as environment variables
+        echo "API_KEY=tqRZKkAT" >> $GITHUB_ENV
+        echo "CLIENT_ID=AACG158944" >> $GITHUB_ENV
+        echo "PIN=1245" >> $GITHUB_ENV
+        echo "TOTP_TOKEN=XAJZMATYQ3J3PRZQO53FVTHNRU" >> $GITHUB_ENV
+        echo "STRIKE_STEP=50" >> $GITHUB_ENV
+        
+        # Set INSTRUMENT_NAME with manual override support
+        if [ -n "${{ github.event.inputs.instrument_name }}" ]; then
+          echo "INSTRUMENT_NAME=${{ github.event.inputs.instrument_name }}" >> $GITHUB_ENV
+        else
+          echo "INSTRUMENT_NAME=NIFTY" >> $GITHUB_ENV
+        fi
+        
+        # Set STRIKE_LEVELS with manual override support
+        if [ -n "${{ github.event.inputs.strike_levels }}" ]; then
+          echo "STRIKE_LEVELS=${{ github.event.inputs.strike_levels }}" >> $GITHUB_ENV
+        else
+          echo "STRIKE_LEVELS=12" >> $GITHUB_ENV
+        fi
+        
+        # Set EXCHANGE with manual override support
+        if [ -n "${{ github.event.inputs.exchange }}" ]; then
+          echo "EXCHANGE=${{ github.event.inputs.exchange }}" >> $GITHUB_ENV
+        else
+          echo "EXCHANGE=NFO" >> $GITHUB_ENV
+        fi
+        
+        # Set INTERVAL with manual override support
+        if [ -n "${{ github.event.inputs.interval }}" ]; then
+          echo "INTERVAL=${{ github.event.inputs.interval }}" >> $GITHUB_ENV
+        else
+          echo "INTERVAL=ONE_MINUTE" >> $GITHUB_ENV
+        fi
+        
+        # Set FROM_DATE with manual override support
+        if [ -n "${{ github.event.inputs.from_date }}" ]; then
+          echo "FROM_DATE=${{ github.event.inputs.from_date }}" >> $GITHUB_ENV
+        else
+          echo "FROM_DATE=2026-04-17 09:15" >> $GITHUB_ENV
+        fi
+        
+        # Set TO_DATE with manual override support
+        if [ -n "${{ github.event.inputs.to_date }}" ]; then
+          echo "TO_DATE=${{ github.event.inputs.to_date }}" >> $GITHUB_ENV
+        else
+          echo "TO_DATE=2026-04-17 15:30" >> $GITHUB_ENV
+        fi
+        
+        # Set DAY_OPEN with manual override support
+        if [ -n "${{ github.event.inputs.day_open }}" ]; then
+          echo "DAY_OPEN=${{ github.event.inputs.day_open }}" >> $GITHUB_ENV
+        else
+          echo "DAY_OPEN=24450" >> $GITHUB_ENV
+        fi
+        
+        # Set EXPIRY_DATE with manual override support
+        if [ -n "${{ github.event.inputs.expiry_date }}" ]; then
+          echo "EXPIRY_DATE=${{ github.event.inputs.expiry_date }}" >> $GITHUB_ENV
+        else
+          echo "EXPIRY_DATE=2026-04-28" >> $GITHUB_ENV
+        fi
+        
+        echo "========================================="
+        echo "Environment variables set at $(date)"
+        echo "========================================="
+        echo "API_KEY: ***"
+        echo "CLIENT_ID: ***"
+        echo "PIN: ***"
+        echo "TOTP_TOKEN: ***"
+        echo "INSTRUMENT_NAME: ${INSTRUMENT_NAME:-NIFTY}"
+        echo "DAY_OPEN: ${DAY_OPEN:-24450}"
+        echo "STRIKE_LEVELS: ${STRIKE_LEVELS:-12}"
+        echo "EXPIRY_DATE: ${EXPIRY_DATE:-2026-04-28}"
+        echo "EXCHANGE: ${EXCHANGE:-NFO}"
+        echo "INTERVAL: ${INTERVAL:-ONE_MINUTE}"
+        echo "FROM_DATE: ${FROM_DATE:-2026-04-17 09:15}"
+        echo "TO_DATE: ${TO_DATE:-2026-04-17 15:30}"
+        echo "STRIKE_STEP: 50"
+        echo "========================================="
+        echo "CSV file will be named: Nifty_${DAY_OPEN:-24450}_<timestamp>.csv"
+        echo "========================================="
+    
+    - name: Run live market data collection
+      run: |
+        python HistoricMain.py
+      env:
+        PYTHONUNBUFFERED: 1
+        PYTHONDONTWRITEBYTECODE: 1  # Prevent creating .pyc files
+    
+    - name: Upload CSV data as artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        # The CSV filename pattern from Historic.py: Nifty_{day_open}_{timestamp}.csv
+        name: nifty-market-data-${{ github.run_id }}
+        path: Nifty_*.csv  # Matches all CSV files starting with "Nifty_"
+        retention-days: 30
+    
+    - name: Upload log files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: execution-logs-${{ github.run_id }}
+        path: logs/
+        retention-days: 30
+    
+    - name: Commit CSV file to repository
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        # Commit all CSV files matching the pattern Nifty_*.csv
+        # Example: Nifty_24450_20260422_143025.csv
+        git add Nifty_*.csv
+        git commit -m "Add market data for day open: ${DAY_OPEN} on $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+        git push origin GA
+      env:
+        DAY_OPEN: ${{ env.DAY_OPEN }}

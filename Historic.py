@@ -49,7 +49,7 @@ class HistoricalDataManager:
         
     def save_historical_data_to_csv(self, token_values, day_open, fromdate, todate, exchange, interval, output_dir):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S') # Generate a timestamp for the filename
-        csv_filename = f"{day_open}_{timestamp}.csv"         # Create a unique filename using the day open price and timestamp
+        csv_filename = f"Nifty_{day_open}_{timestamp}.csv"         # Create a unique filename using the day open price and timestamp
         csv_path = os.path.join(output_dir, csv_filename)    # Combine the output directory and filename to get the full path for the CSV file
         first_write = True       # Flag to indicate if it's the first write to the CSV file (to include header only for the first write)
 
