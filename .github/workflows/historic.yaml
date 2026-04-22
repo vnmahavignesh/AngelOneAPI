@@ -194,7 +194,7 @@ jobs:
         echo "CSV file will be named: Nifty_${DAY_OPEN:-24450}_<timestamp>.csv"
         echo "========================================="
     
-    - name: Run live market data collection
+    - name: Run historic market data collection
       run: |
         python HistoricMain.py
       env:
