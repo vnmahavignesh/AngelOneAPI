@@ -27,14 +27,15 @@ print("Values:", values)  # Print the calculated strike values for verification
 
 class Tee:
     """Helper class to write to multiple outputs (console and file)"""
+
     def __init__(self, *outputs):
         self.outputs = outputs
-    
+
     def write(self, message):
         for output in self.outputs:
             output.write(message)
             output.flush()
-    
+
     def flush(self):
         for output in self.outputs:
             output.flush()
@@ -43,32 +44,32 @@ class Tee:
 def setup_github_actions_environment():
     """Handle GitHub Actions specific settings"""
     is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
-    
+
     if is_github_actions:
         print("="*60)
         print("Running in GitHub Actions environment")
         print("="*60)
-        
+
         # Ensure we have write permissions
         workspace = os.getenv('GITHUB_WORKSPACE', '.')
         os.chdir(workspace)
         print(f"Working directory: {os.getcwd()}")
-        
+
         # Create logs directory if it doesn't exist
         os.makedirs('logs', exist_ok=True)
-        
+
         # Create log file for this run
         log_filename = f'logs/market_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
         log_file = open(log_filename, 'a')
-        
+
         # Redirect output to both console and file
         sys.stdout = Tee(sys.stdout, log_file)
         sys.stderr = Tee(sys.stderr, log_file)
-        
+
         print(f"Log file created: {log_filename}")
         print(f"Current time (UTC): {datetime.now(timezone.utc)}")
         print(f"GitHub Run ID: {os.getenv('GITHUB_RUN_ID', 'N/A')}")
-        
+
     return is_github_actions
 
 
@@ -120,17 +121,19 @@ def is_market_open():
 
 """---------------------------------------------Main Execution Start-------------------------------------------------------"""
 if __name__ == "__main__":
-    
+
     try:
         # Record the start time
         start_time = time.time()
         print(f"\n{'='*60}")
-        print(f"Script started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"Script started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"{'='*60}")
 
         """------------------------------------------------- Masterlist -------------------------------------------------------"""
         print("\n[1/5] Loading Masterlist...")
-        master = Masterlist()  # Create an instance of the Masterlist class to fetch the master list data
+        # Create an instance of the Masterlist class to fetch the master list data
+        master = Masterlist()
         # Get the token DataFrame from the master list instance and print it
         token_df = master.get_token_df()
         # Print the time taken to load the master list data
@@ -154,7 +157,8 @@ if __name__ == "__main__":
 
         """-------------------------------------------------- Login to the API ------------------------------------------------"""
         print("\n[2/5] Logging into AngelOne API...")
-        login_manager = Login()  # Create an instance of the LoginManager class and login to the API
+        # Create an instance of the LoginManager class and login to the API
+        login_manager = Login()
         # Call the login method and store the session data and print it
         session_data = login_manager.login()
 
@@ -171,13 +175,14 @@ if __name__ == "__main__":
         else:
             error_msg = session_data.get('message', 'Unknown error')
             error_code = session_data.get('errorcode', 'N/A')
-            raise Exception(f"Login failed! Error: {error_msg}, Code: {error_code}")
+            raise Exception(
+                f"Login failed! Error: {error_msg}, Code: {error_code}")
 
         """------------------------------------------------- End of Login -------------------------------------------------------"""
 
         """------------------------------------------------- Live Market Data Fetching ------------------------------------------"""
         print("\n[3/5] Setting up live market data fetching...")
-        
+
         # Create an instance of LiveMarketDataManager
         live_data_manager = LiveMarketDataManager(smart_connect)
 
@@ -187,7 +192,7 @@ if __name__ == "__main__":
             for record in records:
                 exchange_tokens_list.append(str(record['token']))
         exchange_tokens = {"NFO": exchange_tokens_list}
-        
+
         print(f"Total tokens to fetch: {len(exchange_tokens_list)}")
 
         # Define market hours in IST (UTC+5:30)
@@ -203,7 +208,7 @@ if __name__ == "__main__":
         # Define end time: 3:30 PM IST (UTC+5:30) changed to 3.15 PM
         end_time = datetime.now(timezone.utc) + ist_offset
         end_time = end_time.replace(
-            hour=15, minute=0, second=0, microsecond=0)
+            hour=15, minute=12, second=0, microsecond=0)
 
         # CSV filename: Nifty_day_open_yyyymmdd.csv
         current_date = datetime.now().strftime('%Y%m%d')
@@ -223,7 +228,7 @@ if __name__ == "__main__":
         iteration = 0
         successful_fetches = 0
         failed_fetches = 0
-        
+
         while datetime.now(timezone.utc) + ist_offset < end_time:
             # Verify market is still open (safety check)
             if not is_market_open():
@@ -263,11 +268,13 @@ if __name__ == "__main__":
                     failed_fetches += 1
                     current_time_ist = (datetime.now(
                         timezone.utc) + ist_offset).strftime('%H:%M:%S')
-                    print(f"[Iteration {iteration+1}] ⚠️ No live market data fetched at {current_time_ist} IST")
+                    print(
+                        f"[Iteration {iteration+1}] ⚠️ No live market data fetched at {current_time_ist} IST")
 
             except Exception as e:
                 failed_fetches += 1
-                print(f"[Iteration {iteration+1}] ❌ Error fetching data: {str(e)}")
+                print(
+                    f"[Iteration {iteration+1}] ❌ Error fetching data: {str(e)}")
 
             # Sleep for 60 seconds
             time.sleep(60)
@@ -281,7 +288,7 @@ if __name__ == "__main__":
         print(f"Successful fetches: {successful_fetches}")
         print(f"Failed fetches: {failed_fetches}")
         print(f"Total runtime: {time.time() - start_time:.2f} seconds")
-        
+
         # Verify CSV file was created and has data
         if os.path.exists(csv_path):
             file_size = os.path.getsize(csv_path)
@@ -291,7 +298,7 @@ if __name__ == "__main__":
             print(f"Total columns in CSV: {len(df_check.columns)}")
         else:
             print("⚠️ WARNING: CSV file was not created!")
-            
+
         print(f"{'='*60}")
 
     except Exception as e:
@@ -301,27 +308,29 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         sys.exit(1)
-        
+
     finally:
         # GitHub Actions specific cleanup
         if is_github_actions:
             print("\n✅ GitHub Actions execution completed")
-            
+
             # List created files for debugging
             print("\nFiles created in this run:")
             for file in os.listdir('.'):
                 if file.startswith('Nifty_') and file.endswith('.csv'):
                     file_size = os.path.getsize(file)
                     print(f"  - {file} ({file_size} bytes)")
-            
+
             print(f"\nLog files:")
             for file in os.listdir('logs'):
                 if file.startswith('market_data_'):
                     print(f"  - logs/{file}")
-            
+
             print(f"\n{'='*60}")
             print("GitHub Action completed successfully")
             print(f"{'='*60}")
-        
-        print(f"\nScript finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Total execution time: {time.time() - start_time:.2f} seconds\n")
+
+        print(
+            f"\nScript finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(
+            f"Total execution time: {time.time() - start_time:.2f} seconds\n")
