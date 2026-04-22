@@ -1,0 +1,125 @@
+name: Daily Market Automation
+
+on:
+  # Schedule at 9:10 AM IST (3:40 AM UTC) Monday-Friday
+  schedule:
+    - cron: '40 3 * * 1-5'
+  
+  # Allow manual trigger with custom values
+  workflow_dispatch:
+    inputs:
+      day_open:
+        description: 'NIFTY Day Open Price (optional)'
+        required: false
+        type: string
+      expiry_date:
+        description: 'Expiry Date (DD-MM-YYYY) (optional)'
+        required: false
+        type: string
+
+jobs:
+  run-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 400  # 6 hours 40 minutes buffer
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas requests python-dotenv pyotp SmartApi
+    
+    - name: Prepare .env file with latest values
+      env:
+        API_KEY: ${{ secrets.API_KEY }}
+        CLIENT_ID: ${{ secrets.CLIENT_ID }}
+        PIN: ${{ secrets.PIN }}
+        TOTP_TOKEN: ${{ secrets.TOTP_TOKEN }}
+        # Use manual input if provided, otherwise use secrets
+        INSTRUMENT_NAME: "NIFTY"
+        STRIKE_STEP: "50"
+        STRIKE_LEVELS: "12"
+        EXPIRY_DATE: ${{ github.event.inputs.expiry_date || '21-04-2026' }}
+        DAY_OPEN: ${{ github.event.inputs.day_open || '22400' }}
+        # STRIKE_STEP: ${{ secrets.STRIKE_STEP }}        
+        # INSTRUMENT_NAME: ${{ secrets.INSTRUMENT_NAME }}
+        # DAY_OPEN: ${{ github.event.inputs.day_open || secrets.DAY_OPEN }}
+        # STRIKE_LEVELS: ${{ secrets.STRIKE_LEVELS }}
+        # EXPIRY_DATE: ${{ github.event.inputs.expiry_date || secrets.EXPIRY_DATE }}
+        
+      run: |
+        # Create .env file
+        cat > .env << EOF
+        API_KEY=${API_KEY}
+        CLIENT_ID=${CLIENT_ID}
+        PIN=${PIN}
+        TOTP_TOKEN=${TOTP_TOKEN}
+        EXPIRY_DATE=${EXPIRY_DATE}
+        INSTRUMENT_NAME=${INSTRUMENT_NAME}
+        DAY_OPEN=${DAY_OPEN}
+        STRIKE_LEVELS=${STRIKE_LEVELS}
+        STRIKE_STEP=${STRIKE_STEP}
+        EOF
+        
+        echo "========================================="
+        echo ".env file created at $(date)"
+        echo "========================================="
+        echo "DAY_OPEN: ${DAY_OPEN}"
+        echo "EXPIRY_DATE: ${EXPIRY_DATE}"
+        echo "INSTRUMENT_NAME: ${INSTRUMENT_NAME}"
+        echo "STRIKE_LEVELS: ${STRIKE_LEVELS}"
+        echo "STRIKE_STEP: ${STRIKE_STEP}"
+        echo "========================================="
+    
+    - name: Display .env file (masked)
+      run: |
+        echo "Verifying .env file contents:"
+        cat .env | sed 's/=.*/=***/'
+    
+    - name: Run live market data collection
+      run: |
+        python LiveMarketDataMainAutomaticGA.py
+      env:
+        PYTHONUNBUFFERED: 1
+    
+    - name: Upload CSV data as artifact
+      if: always()  # Upload even if script fails
+      uses: actions/upload-artifact@v4
+      with:
+        name: nifty-market-data-${{ github.run_id }}
+        path: Nifty_*.csv
+        retention-days: 30
+    
+    - name: Upload log files
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: execution-logs-${{ github.run_id }}
+        path: logs/
+        retention-days: 30
+    
+    - name: Commit CSV file to repository
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add Nifty_*.csv
+        git commit -m "Add market data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes to commit"
+        git push
+    
+    - name: Commit updated .env if changed (optional)
+      if: github.event.inputs.day_open != '' || github.event.inputs.expiry_date != ''
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+        git add .env
+        git diff --staged --quiet || git commit -m "Update .env with manual inputs [skip ci]"
+        git diff --staged --quiet || git push
